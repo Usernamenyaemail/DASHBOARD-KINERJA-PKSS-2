@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Kinerja Unit Kerja</title>
+    <!-- Tailwind CSS for Styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React & ReactDOM (Version 18) -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <!-- Prop-Types -->
+    <script src="https://unpkg.com/prop-types@15.8.1/prop-types.min.js"></script>
+    <!-- Recharts -->
+    <script src="https://unpkg.com/recharts@2.12.7/umd/Recharts.js"></script>
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- SheetJS for Excel Export -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .recharts-responsive-container { min-height: 250px; }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+    </style>
+</head>
+<body class="bg-slate-50">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useMemo, useEffect } = React;
+        
+        const { 
+            BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer 
+        } = window.Recharts;
+
+        const CABANG_LIST = [
+            "Jakarta 1", "Jakarta 2", "Jakarta 3", "Jakarta 4", 
+            "Bandung", "Surabaya", "Semarang", "Medan", "Makassar", "Palembang", "Denpasar", 
+            "Kupang", "Mataram", "Balikpapan", "Pontianak", "Manado", "Ambon", "Jayapura",
+            "Yogyakarta", "Solo", "Malang", "Banjarmasin", "Pekanbaru", "Padang", "Batam",
+            "Jambi", "Bengkulu", "Lampung", "Serang", "Tangerang", "Bekasi", "Depok", "Bogor", "Cirebon"
+        ];
+
+        const MONTHS = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+        const YEARS = [2024, 2025, 2026];
+
+        const generateKpiTable = (unit, year, month) => {
+            const seed = (unit.length + year + month) % 100;
+            return [
+                { unit, aspek: "Business", sasaran: "All Segment Business", kpi: "Pendapatan Usaha", bobot: 25.0, capping: 110, target: 417308702250, realisasi: 417308702250 * (0.8 + (seed/200)) },
+                { unit, aspek: "Business", sasaran: "All Segment Business", kpi: "Laba Operasional", bobot: 15.0, capping: 110, target: 33605775167, realisasi: 33605775167 * (0.7 + (seed/200)) },
+                { unit, aspek: "Process", sasaran: "HR Fulfillment", kpi: "Pemenuhan Formasi", bobot: 15.0, capping: 100, target: 100, realisasi: 40 + (seed % 50) },
+                { unit, aspek: "Process", sasaran: "Quality Control", kpi: "Akurasi Data", bobot: 10.0, capping: 100, target: 98, realisasi: 92 + (seed % 6) },
+                { unit, aspek: "Operations", sasaran: "Invoicing", kpi: "DSO (Days)", bobot: 15.0, capping: 110, target: 63, realisasi: 90 - (seed % 20) },
+                { unit, aspek: "Operations", sasaran: "Monitoring", kpi: "Pembinaan Pekerja", bobot: 5.0, capping: 100, target: 700, realisasi: 1200 - (seed * 5) },
+                { unit, aspek: "Risk", sasaran: "Compliance", kpi: "Audit Finding", bobot: 10.0, capping: 100, target: 0, realisasi: seed % 3 },
+                { unit, aspek: "Risk", sasaran: "Security", kpi: "Incident Rate", bobot: 5.0, capping: 100, target: 0, realisasi: (seed % 2) / 10 }
+            ];
+        };
+
+        const generateData = (unit, year, month) => {
+            const seed = (unit.length + year + month) % 100;
+            return {
+                financials: [
+                    { title: "Pendapatan", realisasi: (120000000000 + (seed * 100000000)), target: 130000000000, type: 'growth' },
+                    { title: "Beban", realisasi: (80000000000 + (seed * 50000000)), target: 85000000000, type: 'savings' },
+                    { title: "Laba Usaha", realisasi: (40000000000 + (seed * 50000000)), target: 45000000000, type: 'growth' },
+                    { title: "Biaya Ops", realisasi: (15000000000 + (seed * 20000000)), target: 14000000000, type: 'savings' },
+                    { title: "Laba Ops", realisasi: (25000000000 + (seed * 30000000)), target: 30000000000, type: 'growth' }
+                ],
+                gauges: {
+                    business: 60 + (seed % 40),
+                    process: 40 + (seed % 50),
+                    operation: 50 + (seed % 45),
+                    risk: 45 + (seed % 50),
+                    all: 55 + (seed % 35)
+                }
+            };
+        };
+
+        const GaugeComponent = ({ label, value }) => {
+            const rotation = (value / 100) * 180 - 90;
+            return (
+                <div className="flex flex-col items-center bg-white rounded-xl p-4 shadow-sm border border-slate-100 flex-1 min-w-[140px]">
+                    <span className="text-[10px] font-bold text-slate-500 mb-2 uppercase tracking-widest">{label}</span>
+                    <div className="relative w-24 h-12 overflow-hidden">
+                        <div className="absolute top-0 left-0 w-24 h-24 rounded-full border-[10px] border-slate-100"></div>
+                        <div 
+                            className="absolute top-0 left-0 w-24 h-24 rounded-full border-[10px] border-transparent border-t-blue-600 border-l-blue-600"
+                            style={{ transform: `rotate(${(value/100)*180 - 135}deg)`, transition: 'transform 1s ease-out' }}
+                        ></div>
+                        <div className="absolute bottom-0 left-1/2 w-0.5 h-10 bg-slate-800 origin-bottom -translate-x-1/2"
+                             style={{ transform: `rotate(${rotation}deg)`, transition: 'transform 1.5s ease-out' }}>
+                        </div>
+                    </div>
+                    <span className="text-lg font-black text-slate-800 mt-2">{value.toFixed(0)}%</span>
+                </div>
+            );
+        };
+
+        const App = () => {
+            const [selectedUnit, setSelectedUnit] = useState("Jakarta 1");
+            const [selectedYear, setSelectedYear] = useState("2025");
+            const [selectedMonth, setSelectedMonth] = useState("Maret");
+            const [isExporting, setIsExporting] = useState(false);
+            const [tableFilterUnit, setTableFilterUnit] = useState("Jakarta 1");
+
+            useEffect(() => {
+                if (window.lucide) {
+                    window.lucide.createIcons();
+                }
+            }, [selectedUnit, selectedMonth, selectedYear, tableFilterUnit]);
+
+            const summaryData = useMemo(() => {
+                const monthIdx = MONTHS.indexOf(selectedMonth);
+                return generateData(selectedUnit, parseInt(selectedYear), monthIdx);
+            }, [selectedUnit, selectedYear, selectedMonth]);
+
+            const tableKpiData = useMemo(() => {
+                const monthIdx = MONTHS.indexOf(selectedMonth);
+                return generateKpiTable(tableFilterUnit, parseInt(selectedYear), monthIdx);
+            }, [tableFilterUnit, selectedYear, selectedMonth]);
+
+            const formatIDR = (val) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(val);
+
+            const exportToExcel = () => {
+                setIsExporting(true);
+                setTimeout(() => {
+                    try {
+                        const XLSX = window.XLSX;
+                        const wb = XLSX.utils.book_new();
+                        // Mapping data with new formulas for export
+                        const exportData = tableKpiData.map(row => {
+                            const pencapaian = row.target === 0 ? 0 : (row.realisasi / row.target);
+                            const scoreAwal = pencapaian * row.bobot;
+                            const maxVal = (row.bobot * row.capping) / 100;
+                            const skorAkhir = scoreAwal < maxVal ? scoreAwal : maxVal;
+                            return {
+                                "Aspek": row.aspek,
+                                "KPI": row.kpi,
+                                "Bobot (%)": row.bobot,
+                                "Capping Max (%)": row.capping,
+                                "Target": row.target,
+                                "Realisasi": row.realisasi,
+                                "Pencapaian (%)": (pencapaian * 100).toFixed(2),
+                                "Score Awal": scoreAwal.toFixed(2),
+                                "Max": maxVal.toFixed(2),
+                                "Skor Akhir": skorAkhir.toFixed(2)
+                            };
+                        });
+                        const kpiSheet = XLSX.utils.json_to_sheet(exportData);
+                        XLSX.utils.book_append_sheet(wb, kpiSheet, "Detail KPI");
+                        XLSX.writeFile(wb, `KPI_${tableFilterUnit}_${selectedMonth}.xlsx`);
+                    } catch (err) {
+                        console.error("Export error:", err);
+                    } finally {
+                        setIsExporting(false);
+                    }
+                }, 500);
+            };
+
+            const status = useMemo(() => {
+                const score = summaryData.gauges.all;
+                if (score < 50) return { label: "Need Improvement", color: "text-red-600", bg: "bg-red-50", icon: "trending-down" };
+                if (score < 80) return { label: "Good", color: "text-orange-600", bg: "bg-orange-50", icon: "activity" };
+                return { label: "Excellent", color: "text-green-600", bg: "bg-green-50", icon: "check-circle-2" };
+            }, [summaryData.gauges.all]);
+
+            return (
+                <div className="min-h-screen pb-12">
+                    <nav className="bg-blue-800 text-white p-4 shadow-md sticky top-0 z-50">
+                        <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+                            <div className="flex items-center gap-3">
+                                <div className="bg-orange-500 p-2 rounded-lg flex items-center justify-center">
+                                    <i data-lucide="layout-dashboard" className="text-white"></i>
+                                </div>
+                                <div>
+                                    <h1 className="font-black text-xl uppercase leading-none text-white">Dashboard Kinerja</h1>
+                                    <span className="text-[10px] text-blue-200 font-bold tracking-widest uppercase">Pusat Data Unit Kerja</span>
+                                </div>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                                <select value={selectedYear} onChange={e => setSelectedYear(e.target.value)} className="bg-blue-900 border-none rounded px-3 py-1.5 text-sm font-bold text-white outline-none">
+                                    {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
+                                </select>
+                                <select value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)} className="bg-blue-900 border-none rounded px-3 py-1.5 text-sm font-bold text-white outline-none">
+                                    {MONTHS.map(m => <option key={m} value={m}>{m}</option>)}
+                                </select>
+                                <select value={selectedUnit} onChange={e => {setSelectedUnit(e.target.value); setTableFilterUnit(e.target.value);}} className="bg-white text-blue-900 border-none rounded px-3 py-1.5 text-sm font-black outline-none">
+                                    {CABANG_LIST.map(c => <option key={c} value={c}>{c}</option>)}
+                                </select>
+                                <button onClick={exportToExcel} className="bg-emerald-500 hover:bg-emerald-600 px-4 py-1.5 rounded text-sm font-black flex items-center gap-2 transition-all shadow-sm">
+                                    <i data-lucide="file-spreadsheet" className="w-4 h-4"></i> {isExporting ? "Memproses..." : "EXPORT"}
+                                </button>
+                            </div>
+                        </div>
+                    </nav>
+
+                    <main className="max-w-7xl mx-auto px-4 mt-6">
+                        <div className="flex flex-col lg:flex-row gap-4 mb-6">
+                            <div className={`flex flex-1 rounded-2xl border border-slate-200 overflow-hidden shadow-sm ${status.bg}`}>
+                                <div className="bg-blue-900 text-white p-6 flex flex-col items-center justify-center min-w-[120px]">
+                                    <span className="text-[10px] font-bold opacity-60 uppercase text-white">Scoring</span>
+                                    <span className="text-5xl font-black text-white">{summaryData.gauges.all.toFixed(0)}</span>
+                                </div>
+                                <div className="p-6 flex flex-col justify-center">
+                                    <span className="text-xs font-bold text-slate-500 uppercase">Unit: {selectedUnit}</span>
+                                    <div className={`flex items-center gap-2 text-2xl font-black uppercase ${status.color}`}>
+                                        <i data-lucide={status.icon}></i> {status.label}
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="flex-[2] flex flex-wrap gap-3">
+                                <GaugeComponent label="Business" value={summaryData.gauges.business} />
+                                <GaugeComponent label="Process" value={summaryData.gauges.process} />
+                                <GaugeComponent label="Operation" value={summaryData.gauges.operation} />
+                                <GaugeComponent label="Risk" value={summaryData.gauges.risk} />
+                                <GaugeComponent label="Overall" value={summaryData.gauges.all} />
+                            </div>
+                        </div>
+
+                        {/* Financial Cards */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+                            {summaryData.financials.map((item, idx) => {
+                                const pct = (item.realisasi / item.target) * 100;
+                                const success = item.type === 'growth' ? pct >= 100 : pct <= 100;
+                                return (
+                                    <div key={idx} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                                        <p className="text-[10px] font-black text-slate-400 uppercase mb-3">{item.title}</p>
+                                        <p className="text-lg font-black text-slate-800 leading-tight">{formatIDR(item.realisasi)}</p>
+                                        <div className="mt-4 pt-3 border-t border-slate-50">
+                                            <div className="flex justify-between text-[10px] font-bold mb-1">
+                                                <span className="text-slate-400">Target: {formatIDR(item.target / 1000000000)}M</span>
+                                                <span className={success ? "text-emerald-600" : "text-rose-600"}>{pct.toFixed(1)}%</span>
+                                            </div>
+                                            <div className="h-1 bg-slate-100 rounded-full overflow-hidden">
+                                                <div className={`h-full ${success ? 'bg-emerald-500' : 'bg-rose-500'}`} style={{width: `${Math.min(pct, 100)}%`}}></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+
+                        {/* Updated KPI Table */}
+                        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden mb-6">
+                            <div className="p-4 bg-slate-50 border-b border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                                <div className="flex flex-col">
+                                    <h2 className="font-black text-slate-800 uppercase text-sm tracking-tight flex items-center gap-2">
+                                        <i data-lucide="table-2" className="text-blue-600"></i> Detail Pencapaian KPI
+                                    </h2>
+                                </div>
+                                
+                                <div className="flex items-center gap-2 w-full sm:w-auto">
+                                    <label className="text-[10px] font-black text-slate-600 uppercase whitespace-nowrap">Filter Unit Kerja:</label>
+                                    <select 
+                                        value={tableFilterUnit} 
+                                        onChange={e => setTableFilterUnit(e.target.value)}
+                                        className="bg-white border-2 border-blue-100 rounded-lg px-4 py-2 text-xs font-black text-blue-800 outline-none focus:ring-2 focus:ring-blue-500 w-full sm:min-w-[200px] shadow-sm"
+                                    >
+                                        {CABANG_LIST.map(cabang => <option key={cabang} value={cabang}>{cabang}</option>)}
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div className="overflow-x-auto custom-scrollbar">
+                                <table className="w-full text-left border-collapse">
+                                    <thead>
+                                        <tr className="bg-slate-800 text-white text-[10px] uppercase font-black">
+                                            <th className="p-4">Aspek</th>
+                                            <th className="p-4">KPI</th>
+                                            <th className="p-4 text-center">Bobot</th>
+                                            <th className="p-4 text-center">Capping Max</th>
+                                            <th className="p-4 text-right">Target</th>
+                                            <th className="p-4 text-right">Realisasi</th>
+                                            <th className="p-4 text-center">Pencapaian</th>
+                                            <th className="p-4 text-center">Score Awal</th>
+                                            <th className="p-4 text-center">Max</th>
+                                            <th className="p-4 text-center">Skor Akhir</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="text-sm font-medium">
+                                        {tableKpiData.map((row, idx) => {
+                                            // 1. Rumus Pencapaian: Realisasi / Target
+                                            const pencapaian = row.target === 0 ? 0 : (row.realisasi / row.target);
+                                            
+                                            // 2. Rumus Score Awal: Pencapaian * Bobot
+                                            const scoreAwal = pencapaian * row.bobot;
+                                            
+                                            // 3. Rumus Max: Bobot * Capping Max
+                                            const cappingPercent = row.capping / 100;
+                                            const maxVal = row.bobot * cappingPercent;
+                                            
+                                            // 4. Rumus Skor Akhir: If scoreAwal < maxVal ? scoreAwal : maxVal
+                                            const skorAkhir = scoreAwal < maxVal ? scoreAwal : maxVal;
+
+                                            return (
+                                                <tr key={idx} className="border-b border-slate-50 hover:bg-blue-50 transition-colors">
+                                                    <td className="p-4">
+                                                        <span className="px-2 py-1 bg-slate-100 text-slate-600 rounded text-[10px] font-bold uppercase border border-slate-200">{row.aspek}</span>
+                                                    </td>
+                                                    <td className="p-4 font-bold text-slate-700 min-w-[150px]">{row.kpi}</td>
+                                                    <td className="p-4 text-center font-bold text-slate-500">{row.bobot.toFixed(1)}%</td>
+                                                    <td className="p-4 text-center font-bold text-orange-600">{row.capping}%</td>
+                                                    <td className="p-4 text-right font-mono text-xs italic text-slate-500">
+                                                        {row.target > 100 ? formatIDR(row.target) : row.target}
+                                                    </td>
+                                                    <td className="p-4 text-right font-mono text-xs font-bold text-slate-900">
+                                                        {row.realisasi > 100 ? formatIDR(row.realisasi) : row.realisasi.toFixed(1)}
+                                                    </td>
+                                                    <td className="p-4 text-center font-bold text-slate-600">
+                                                        {(pencapaian * 100).toFixed(1)}%
+                                                    </td>
+                                                    <td className="p-4 text-center font-bold text-slate-500">
+                                                        {scoreAwal.toFixed(2)}
+                                                    </td>
+                                                    <td className="p-4 text-center font-bold text-rose-500">
+                                                        {maxVal.toFixed(2)}
+                                                    </td>
+                                                    <td className="p-4 text-center font-black text-blue-600 italic bg-blue-50/30">
+                                                        {skorAkhir.toFixed(2)}%
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div className="p-3 bg-slate-50 text-[10px] text-slate-400 font-bold flex justify-between border-t border-slate-200 px-4 italic">
+                                <span>* Perhitungan: Skor Akhir = MIN(Score Awal, Max).</span>
+                                <span>Menampilkan KPI Unit Terpilih</span>
+                            </div>
+                        </div>
+                    </main>
+                </div>
+            );
+        };
+
+        const container = document.getElementById('root');
+        const root = ReactDOM.createRoot(container);
+        root.render(<App />);
+    </script>
+</body>
+</html>
